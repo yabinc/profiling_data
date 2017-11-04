@@ -1,0 +1,52 @@
+Profiling result of https://github.com/bruenor41/Benchmark on Pixel 2.
+using `record -e cpu-clock:u -f 1000 -g`.
+
+Gcc:
+2134 gametics in 862 realtics
+total cpu-clock 24.798s
+html report in gcc_result/report.html.
+
+Clang:
+2134 gametices in 1015 realtics
+total cpu-clock 30.107s
+html report in clang_result/report.html.
+
+As can be seen in the Chart Statistics of report.html:
+In both reports, Thread-3 takes about 90% of time, so focus on Thread-3.
+In gcc report, samples in anon:libc_malloc takes about 9s;
+In clang report, samples in anon:libc_malloc takes about 10.5s.
+For samples in anon:libc_malloc, they seem to be code generated
+by functions like gen_call_function_mm(). Anyway, we can't get symbols
+for code in memory.
+All other samples are in libdosbox.so. In gcc report, it takes about
+13s; in clang report, it takes about 16s.
+
+Then I checked the time taken by each function in "Sample Table" tab of
+report.html. In clang report, there is a function called "ModeOperation",
+which doesn't appear in gcc report. By clicking the line of "ModeOperation",
+we can open the function tab of ModeOperation.
+
+The flamegraph of ModeOperation shows it called by VGA_UnchainedVGA_Handler::writew()
+and VGA_UnchainedVGA_Handler::writeb().
+
+I can find writew and writeb in both clang and gcc reports.
+
+In clang report:
+writew() itself takes 427ms, totally takes 1118ms.
+writeb() itself takes 922ms, totally takes 2125ms.
+
+In gcc report:
+writew() takes 673ms. And all function it calls are inlined.
+writeb() takes 1333ms, and all function it calls are inlined.
+
+So if we add that up, in clang report, writew + writeb totally takes 3.2s, in gcc report, writew + writeb takes 2.0s. So the difference is 1.2s, which contributes 1/3 of the time difference between gcc and clang.
+
+Then I compared the source code and disassembled code of VGA_UnchainedVGA_Handler::writeb() function between gcc and clang.
+
+If anyone is interest, please open report.html in the browser, click the “Sample Table” tab, search writeb in the table search place. And click the line containing “VGA_UnchainedVGA_Handler::writeb()”.  Then you should jump to “Function” tab, scroll to the end of the page, it is the disassembled code of writeb().
+
+I found that in clang code, the writeb() inlines writeHandler(), and ModeOperation() inlines RasterOp(). In gcc code, the writeb() inlines writeHandler() -> ModeOperation() -> RasterOp().
+
+
+Other places also have small differences, but not as significant as ModeOperation().
+
